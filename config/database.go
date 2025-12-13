@@ -18,10 +18,14 @@ var (
 
 // InitMongoAtlas เชื่อมต่อ MongoDB Atlas
 func InitMongoAtlas() error {
-    uri := os.Getenv("MONGODB_URI")
-    if uri == "" {
-        return fmt.Errorf("MONGODB_URI not set")
-    }
+	if atlasClient != nil {
+		return nil
+	}
+
+	uri := os.Getenv("MONGODB_URI")
+	if uri == "" {
+		return fmt.Errorf("MONGODB_URI not set")
+	}
 
     ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
     defer cancel()

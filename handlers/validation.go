@@ -12,6 +12,8 @@ var allowedLoanCollections = map[string]bool{
     "loan_tracking":     true,
     "loan_documents":    true,
     "loan_payments":     true,
+    "deposit_accounts":     true,
+    "deposit_transactions":     true,
 }
 
 // Check if collection is allowed

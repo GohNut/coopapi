@@ -50,3 +50,7 @@ temp/
 # Build output
 build/
 out/
+
+# Vercel
+.vercel/
+.vercel
