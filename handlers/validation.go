@@ -14,7 +14,9 @@ var allowedLoanCollections = map[string]bool{
 	"loan_payments":        true,
 	"deposit_accounts":     true,
 	"deposit_transactions": true,
-	"members":               true,
+	"members":              true,
+	"share_accounts":       true,
+	"share_transactions":   true,
 }
 
 // Check if collection is allowed
