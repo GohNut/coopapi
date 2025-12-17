@@ -44,6 +44,13 @@ func setupRoutes(e *echo.Echo) {
 	loanGroup.POST("/get", handlers.LoanDynamicGet)
 	loanGroup.POST("/update", handlers.LoanDynamicUpdate)
 	loanGroup.POST("/delete", handlers.LoanDynamicDelete)
+
+	// Document endpoints (Refactored from Image API)
+	e.POST("/document/upload", handlers.DocumentUploadHandler)
+	e.POST("/document/list", handlers.DocumentListHandler)
+	e.POST("/document/get", handlers.DocumentGetHandler)
+	e.POST("/document/info", handlers.DocumentInfoHandler)
+	e.POST("/document/delete", handlers.DocumentDeleteHandler)
 }
 
 func getAllowedOrigins() []string {

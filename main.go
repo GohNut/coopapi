@@ -27,6 +27,11 @@ func main() {
         log.Printf("Warning: Failed to ensure indexes: %v", err)
     }
 
+    // Initialize R2 (Cloudflare)
+    if err := config.InitR2(); err != nil {
+        log.Printf("Warning: Failed to initialize R2: %v", err)
+    }
+
     // สร้าง Echo instance
     e := routes.NewEcho()
 
