@@ -8,11 +8,13 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/labstack/echo/v4"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"loan-dynamic-api/config"
 )
@@ -102,7 +104,7 @@ func UploadProfileImageHandler(c echo.Context) error {
 			Bucket: aws.String(bucket),
 			Key:    aws.String(r2Key),
 		}, func(opts *s3.PresignOptions) {
-			opts.Expires = 15 * 60 // 15 minutes
+			opts.Expires = 24 * time.Hour // 24 hours for longer validity
 		})
 		if err == nil {
 			presignedURL = presignedRequest.URL
@@ -116,16 +118,13 @@ func UploadProfileImageHandler(c echo.Context) error {
 	}
 	collection := db.Collection("members")
 
-	// Build the full R2 URL (permanent URL)
-	// Format: https://{bucket}.{accountid}.r2.cloudflarestorage.com/{key}
-	// Note: For production, you might want to use a custom domain
-	profileImageURL := fmt.Sprintf("https://%s/%s", bucket, r2Key)
-
-	// Update the member's profile_image_url field
+	// Store the R2 key in database (not the full URL)
+	// This allows us to generate presigned URLs on-demand
 	filter := bson.M{"memberid": memberID}
 	update := bson.M{
 		"$set": bson.M{
-			"profile_image_url": profileImageURL,
+			"profile_image_key":        r2Key,
+			"profile_image_updated_at": time.Now(),
 		},
 	}
 
@@ -138,17 +137,131 @@ func UploadProfileImageHandler(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Member not found"})
 	}
 
-	// Return both permanent URL and presigned URL
+	// Return presigned URL for immediate use with version for cache busting
 	response := map[string]interface{}{
 		"status":            "success",
 		"message":           "Profile image uploaded successfully",
-		"profile_image_url": profileImageURL,
-	}
-
-	// Include presigned URL if available for immediate display
-	if presignedURL != "" {
-		response["presigned_url"] = presignedURL
+		"profile_image_url": presignedURL, // Return presigned URL
+		"version":           time.Now().Unix(), // Add version for cache busting
 	}
 
 	return c.JSON(http.StatusOK, response)
+}
+
+// GetMemberProfileImageHandler generates a fresh presigned URL for member's profile image
+func GetMemberProfileImageHandler(c echo.Context) error {
+	memberID := c.QueryParam("memberid")
+	if memberID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "memberid is required"})
+	}
+
+	// Get member from database
+	db := config.GetDatabase()
+	if db == nil {
+		return c.JSON(http.StatusServiceUnavailable, map[string]string{"error": "Database not connected"})
+	}
+	collection := db.Collection("members")
+
+	var member map[string]interface{}
+	err := collection.FindOne(context.TODO(), bson.M{"memberid": memberID}).Decode(&member)
+	if err != nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Member not found"})
+	}
+
+	// Check if member has profile image
+	profileImageKey, ok := member["profile_image_key"].(string)
+	if !ok || profileImageKey == "" {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "No profile image found"})
+	}
+
+	// Generate presigned URL
+	presignClient := config.GetR2PresignClient()
+	if presignClient == nil {
+		return c.JSON(http.StatusServiceUnavailable, map[string]string{"error": "R2 storage not configured"})
+	}
+	bucket := config.GetR2Bucket()
+
+	presignedRequest, err := presignClient.PresignGetObject(context.TODO(), &s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(profileImageKey),
+	}, func(opts *s3.PresignOptions) {
+		opts.Expires = 24 * time.Hour // 24 hours
+	})
+
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to generate presigned URL", "details": err.Error()})
+	}
+
+	// Get version from updated_at timestamp
+	var version int64
+	if updatedAt, ok := member["profile_image_updated_at"].(primitive.DateTime); ok {
+		version = updatedAt.Time().Unix()
+	} else {
+		// Fallback to current time if no timestamp exists
+		version = time.Now().Unix()
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"status":            "success",
+		"profile_image_url": presignedRequest.URL,
+		"version":           version,
+		"expires_in":        "24h",
+	})
+}
+
+// ProxyProfileImageHandler serves profile image through backend to avoid CORS issues
+func ProxyProfileImageHandler(c echo.Context) error {
+	memberID := c.QueryParam("memberid")
+	if memberID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "memberid is required"})
+	}
+
+	// Get member from database
+	db := config.GetDatabase()
+	if db == nil {
+		return c.JSON(http.StatusServiceUnavailable, map[string]string{"error": "Database not connected"})
+	}
+	collection := db.Collection("members")
+
+	var member map[string]interface{}
+	err := collection.FindOne(context.TODO(), bson.M{"memberid": memberID}).Decode(&member)
+	if err != nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Member not found"})
+	}
+
+	// Check if member has profile image
+	profileImageKey, ok := member["profile_image_key"].(string)
+	if !ok || profileImageKey == "" {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "No profile image found"})
+	}
+
+	// Get image from R2
+	r2Client := config.GetR2Client()
+	if r2Client == nil {
+		return c.JSON(http.StatusServiceUnavailable, map[string]string{"error": "R2 storage not configured"})
+	}
+	bucket := config.GetR2Bucket()
+
+	result, err := r2Client.GetObject(context.TODO(), &s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(profileImageKey),
+	})
+	if err != nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Image not found in storage"})
+	}
+	defer result.Body.Close()
+
+	// Set appropriate headers
+	contentType := "image/jpeg" // default
+	if result.ContentType != nil {
+		contentType = *result.ContentType
+	}
+
+	// Cache for 24 hours
+	c.Response().Header().Set("Content-Type", contentType)
+	c.Response().Header().Set("Cache-Control", "public, max-age=86400") // 24 hours
+	c.Response().Header().Set("Access-Control-Allow-Origin", "*") // Allow CORS
+
+	// Stream the image
+	return c.Stream(http.StatusOK, contentType, result.Body)
 }

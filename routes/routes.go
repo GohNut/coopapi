@@ -54,6 +54,8 @@ func setupRoutes(e *echo.Echo) {
 
 	// Member endpoints
 	e.POST("/upload-profile-image", handlers.UploadProfileImageHandler)
+	e.GET("/member/profile-image", handlers.GetMemberProfileImageHandler)
+	e.GET("/member/profile-image/proxy", handlers.ProxyProfileImageHandler) // Proxy to avoid CORS
 }
 
 func getAllowedOrigins() []string {
