@@ -51,6 +51,9 @@ func setupRoutes(e *echo.Echo) {
 	e.POST("/document/get", handlers.DocumentGetHandler)
 	e.POST("/document/info", handlers.DocumentInfoHandler)
 	e.POST("/document/delete", handlers.DocumentDeleteHandler)
+
+	// Member endpoints
+	e.POST("/upload-profile-image", handlers.UploadProfileImageHandler)
 }
 
 func getAllowedOrigins() []string {
