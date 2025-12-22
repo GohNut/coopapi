@@ -36,26 +36,40 @@ func setupRoutes(e *echo.Echo) {
 		})
 	})
 
-	// Dynamic Loan API routes
-	loanGroup := e.Group("/api/v1/loan")
+	// Unified API V1 routes
+	v1 := e.Group("/api/v1")
 
-	// Dynamic CRUD operations
-	loanGroup.POST("/create", handlers.LoanDynamicCreate)
-	loanGroup.POST("/get", handlers.LoanDynamicGet)
-	loanGroup.POST("/update", handlers.LoanDynamicUpdate)
-	loanGroup.POST("/delete", handlers.LoanDynamicDelete)
+	// Dynamic CRUD operations (Previously under /loan)
+	v1.POST("/create", handlers.LoanDynamicCreate)
+	v1.POST("/get", handlers.LoanDynamicGet)
+	v1.POST("/update", handlers.LoanDynamicUpdate)
+	v1.POST("/delete", handlers.LoanDynamicDelete)
 
-	// Document endpoints (Refactored from Image API)
-	e.POST("/document/upload", handlers.DocumentUploadHandler)
-	e.POST("/document/list", handlers.DocumentListHandler)
-	e.POST("/document/get", handlers.DocumentGetHandler)
-	e.POST("/document/info", handlers.DocumentInfoHandler)
-	e.POST("/document/delete", handlers.DocumentDeleteHandler)
+	// Document endpoints
+	v1.POST("/document/upload", handlers.DocumentUploadHandler)
+	v1.POST("/document/list", handlers.DocumentListHandler)
+	v1.POST("/document/get", handlers.DocumentGetHandler)
+	v1.POST("/document/info", handlers.DocumentInfoHandler)
+	v1.POST("/document/delete", handlers.DocumentDeleteHandler)
 
 	// Member endpoints
-	e.POST("/upload-profile-image", handlers.UploadProfileImageHandler)
-	e.GET("/member/profile-image", handlers.GetMemberProfileImageHandler)
-	e.GET("/member/profile-image/proxy", handlers.ProxyProfileImageHandler) // Proxy to avoid CORS
+	v1.POST("/upload-profile-image", handlers.UploadProfileImageHandler)
+	v1.GET("/member/profile-image", handlers.GetMemberProfileImageHandler)
+	v1.GET("/member/profile-image/proxy", handlers.ProxyProfileImageHandler)
+	
+	// KYC
+	v1.POST("/member/kyc", handlers.SubmitKYC)
+	
+	// Officer KYC (Should be protected by Officer Middleware in real implementation)
+	v1.GET("/officer/kyc/pending", handlers.GetPendingKYC)
+	v1.GET("/officer/kyc/detail/:memberID", handlers.GetKYCDetail)
+	v1.POST("/officer/kyc/review", handlers.ReviewKYC)
+
+	// Share Management
+	v1.POST("/share/create", handlers.CreateShareType)
+	v1.POST("/share/update/:id", handlers.UpdateShareType)
+	v1.GET("/share/list", handlers.GetShareTypes)
+	v1.DELETE("/share/delete/:id", handlers.DeleteShareType)
 }
 
 func getAllowedOrigins() []string {
