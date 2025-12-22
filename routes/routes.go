@@ -44,6 +44,7 @@ func setupRoutes(e *echo.Echo) {
 	v1.POST("/get", handlers.LoanDynamicGet)
 	v1.POST("/update", handlers.LoanDynamicUpdate)
 	v1.POST("/delete", handlers.LoanDynamicDelete)
+	v1.POST("/verify-token", handlers.VerifyTokenHandler)
 
 	// Document endpoints
 	v1.POST("/document/upload", handlers.DocumentUploadHandler)
