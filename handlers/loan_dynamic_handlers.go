@@ -2,6 +2,7 @@ package handlers
 
 import (
     "context"
+    "fmt"
     "net/http"
     "time"
 
@@ -97,7 +98,49 @@ func LoanDynamicCreate(c echo.Context) error {
         })
     }
 
-    // เพิ่ม timestamps และ unique identifiers
+    // เตรียม database และ context
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+    defer cancel()
+
+    db := config.GetDatabase()
+    if req.Database != "" {
+        db = config.GetDatabase().Client().Database(req.Database)
+    }
+
+    // [New] KYC Check for Transactions
+    if req.Collection == "deposit_transactions" {
+        if err := checkTransactionKYC(req.Data); err != nil {
+             return c.JSON(http.StatusForbidden, map[string]interface{}{
+                "status":  "error",
+                "code":    403,
+                "message": err.Error(),
+            })
+        }
+    }
+
+    // [New] Duplicate Check for Members
+    if req.Collection == "members" {
+        memberID, _ := req.Data["memberid"].(string)
+        appID, _ := req.Data["applicationid"].(string)
+        
+        filter := bson.M{
+            "$or": []bson.M{
+                {"memberid": memberID},
+                {"applicationid": appID},
+            },
+        }
+        
+        var existing map[string]interface{}
+        err := db.Collection("members").FindOne(ctx, filter).Decode(&existing)
+        if err == nil {
+            // Found existing member
+            return c.JSON(http.StatusConflict, map[string]interface{}{
+                "status":  "error",
+                "code":    409,
+                "message": "Member with this citizen ID or application ID already exists",
+            })
+        }
+    }
     if req.Data["applicationid"] == nil {
         req.Data["applicationid"] = uuid.New().String()
     }
@@ -114,14 +157,6 @@ func LoanDynamicCreate(c echo.Context) error {
     }
 
     // บันทึกลง MongoDB
-    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-    defer cancel()
-
-    db := config.GetDatabase()
-    if req.Database != "" {
-        db = config.GetDatabase().Client().Database(req.Database)
-    }
-
     collection := db.Collection(req.Collection)
     
     var result *mongo.InsertOneResult
@@ -470,4 +505,66 @@ func calculateInstallment(amount float64, interestRate float64, term int) float6
     totalInterest := amount * (interestRate / 100) * (float64(term) / 12)
     totalPayment := amount + totalInterest
     return totalPayment / float64(term)
+}
+
+// Helper function to check KYC status for transactions
+func checkTransactionKYC(data map[string]interface{}) error {
+    // 1. Extract info
+    accountID, _ := data["accountid"].(string)
+    txType, _ := data["type"].(string)
+    status, _ := data["status"].(string)
+
+    if accountID == "" {
+        return nil // Skip if no account ID (should usually fail elsewhere or be irrelevant)
+    }
+
+    // 2. Determine if check is needed
+    shouldCheck := false
+    
+    switch txType {
+    case "withdrawal", "transfer_out", "payment", "pay":
+        shouldCheck = true
+    case "deposit":
+        // Only check pending deposits (User initiated)
+        // Officer deposit might be completed directly (if implemented that way), or system refund
+        if status == "pending" {
+            shouldCheck = true
+        }
+    }
+
+    if !shouldCheck {
+        return nil
+    }
+
+    // 3. Connect DB
+    db := config.GetDatabase()
+    if db == nil {
+        return fmt.Errorf("database connection failed")
+    }
+
+    // 4. Find Member ID from Account
+    var account map[string]interface{}
+    err := db.Collection("deposit_accounts").FindOne(context.Background(), bson.M{"accountid": accountID}).Decode(&account)
+    if err != nil {
+        return fmt.Errorf("account not found")
+    }
+
+    memberID, _ := account["memberid"].(string)
+    if memberID == "" {
+        return fmt.Errorf("member not found for this account")
+    }
+
+    // 5. Check Member KYC Status
+    var member map[string]interface{}
+    err = db.Collection("members").FindOne(context.Background(), bson.M{"memberid": memberID}).Decode(&member)
+    if err != nil {
+        return fmt.Errorf("member profile not found")
+    }
+
+    kycStatus, _ := member["kyc_status"].(string)
+    if kycStatus != "verified" {
+        return fmt.Errorf("KYC verification required for this transaction")
+    }
+
+    return nil
 }

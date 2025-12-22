@@ -68,6 +68,71 @@ func EnsureIndexes() error {
         return fmt.Errorf("failed to create indexes for loan_products: %w", err)
     }
 
+    // 3. members Indexes
+    memberColl := db.Collection("members")
+    memberIndexes := []mongo.IndexModel{
+        {
+            Keys:    bson.D{{"memberid", 1}},
+            Options: options.Index().SetUnique(true),
+        },
+        {
+            Keys:    bson.D{{"applicationid", 1}},
+            Options: options.Index().SetUnique(true),
+        },
+        {
+            Keys: bson.D{{"mobile", 1}},
+        },
+        {
+            Keys: bson.D{{"created_at", -1}},
+        },
+    }
+
+    if _, err := memberColl.Indexes().CreateMany(ctx, memberIndexes); err != nil {
+        return fmt.Errorf("failed to create indexes for members: %w", err)
+    }
+
+    // 4. deposit_accounts Indexes
+    accColl := db.Collection("deposit_accounts")
+    accIndexes := []mongo.IndexModel{
+        {
+            Keys:    bson.D{{"accountid", 1}},
+            Options: options.Index().SetUnique(true),
+        },
+        {
+            Keys:    bson.D{{"accountnumber", 1}},
+            Options: options.Index().SetUnique(true),
+        },
+        {
+            Keys: bson.D{{"memberid", 1}},
+        },
+    }
+
+    if _, err := accColl.Indexes().CreateMany(ctx, accIndexes); err != nil {
+        return fmt.Errorf("failed to create indexes for deposit_accounts: %w", err)
+    }
+
+    // 5. deposit_transactions Indexes
+    txColl := db.Collection("deposit_transactions")
+    txIndexes := []mongo.IndexModel{
+        {
+            Keys:    bson.D{{"transactionid", 1}},
+            Options: options.Index().SetUnique(true),
+        },
+        {
+            Keys: bson.D{{"accountid", 1}},
+        },
+        {
+            Keys: bson.D{{"status", 1}},
+        },
+        {
+            Keys: bson.D{{"datetime", -1}},
+        },
+    }
+
+    if _, err := txColl.Indexes().CreateMany(ctx, txIndexes); err != nil {
+        return fmt.Errorf("failed to create indexes for deposit_transactions: %w", err)
+    }
+
     fmt.Println("Indexes ensured successfully")
     return nil
 }
