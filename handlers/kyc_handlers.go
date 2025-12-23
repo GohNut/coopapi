@@ -264,9 +264,10 @@ func GetKYCDetail(c echo.Context) error {
 
 // ReviewKYC handles approval or rejection
 type KYCReviewRequest struct {
-    MemberID string `json:"member_id"`
-    Status   string `json:"status"` // 'verified' or 'rejected'
-    Reason   string `json:"reason,omitempty"`
+    MemberID  string `json:"member_id"`
+    Status    string `json:"status"` // 'verified' or 'rejected'
+    Reason    string `json:"reason,omitempty"`
+    IsOfficer bool   `json:"is_officer"`
 }
 
 func ReviewKYC(c echo.Context) error {
@@ -282,15 +283,27 @@ func ReviewKYC(c echo.Context) error {
 	db := config.GetDatabase()
 	collection := db.Collection("members")
 
+	fmt.Printf("DEBUG: ReviewKYC for MemberID: %s, Status: %s, IsOfficer: %v\n", req.MemberID, req.Status, req.IsOfficer)
+
 	filter := bson.M{"memberid": req.MemberID}
+	
+	updateFields := bson.M{
+		"kyc_status": req.Status,
+		"kyc_reviewed_at": time.Now(),
+		"kyc_reject_reason": req.Reason,
+		"updatedat": time.Now(),
+	}
+
+	// If approved and designated as officer, change role
+	if req.Status == "verified" && req.IsOfficer {
+		fmt.Printf("DEBUG: Promoting Member %s to officer\n", req.MemberID)
+		updateFields["role"] = "officer"
+	} else {
+		fmt.Printf("DEBUG: NOT promoting. Status: %s, IsOfficer: %v\n", req.Status, req.IsOfficer)
+	}
+
 	update := bson.M{
-		"$set": bson.M{
-			"kyc_status": req.Status,
-			"kyc_reviewed_at": time.Now(),
-            "kyc_reject_reason": req.Reason,
-            // In a real app, capture officer ID from context
-            // "kyc_reviewed_by": c.Get("officer_id"), 
-		},
+		"$set": updateFields,
 	}
 
 	result, err := collection.UpdateOne(context.TODO(), filter, update)
