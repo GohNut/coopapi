@@ -71,6 +71,9 @@ func setupRoutes(e *echo.Echo) {
 	v1.POST("/share/update/:id", handlers.UpdateShareType)
 	v1.GET("/share/list", handlers.GetShareTypes)
 	v1.DELETE("/share/delete/:id", handlers.DeleteShareType)
+
+	// Internal Payment / Transfer
+	v1.POST("/payment/internal", handlers.PerformInternalTransfer)
 }
 
 func getAllowedOrigins() []string {
