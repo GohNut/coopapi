@@ -140,20 +140,20 @@ func PerformInternalTransfer(c echo.Context) error {
 				return err
 			}
 
-			// D. Notification for Receiver
-			receiverMemberID, _ := destAccount["memberid"].(string)
-			if receiverMemberID != "" {
-				notification := bson.M{
-					"notificationid": fmt.Sprintf("NOTI-%d", now.UnixNano()),
-					"memberid":       receiverMemberID,
-					"title":          "เงินเข้าบัญชี",
-					"message":        fmt.Sprintf("คุณได้รับเงินโอนจำนวน %.2f บาท จาก %s", amount, sourceAccount["accountname"]),
-					"type":           "success",
-					"read":           false,
-					"createdat":      now,
-				}
-				db.Collection("notifications").InsertOne(sc, notification)
-			}
+			// // D. Notification for Receiver
+			// receiverMemberID, _ := destAccount["memberid"].(string)
+			// if receiverMemberID != "" {
+			// 	notification := bson.M{
+			// 		"notificationid": fmt.Sprintf("NOTI-%d", now.UnixNano()),
+			// 		"memberid":       receiverMemberID,
+			// 		"title":          "เงินเข้าบัญชี",
+			// 		"message":        fmt.Sprintf("คุณได้รับเงินโอนจำนวน %.2f บาท จาก %s", amount, sourceAccount["accountname"]),
+			// 		"type":           "success",
+			// 		"read":           false,
+			// 		"createdat":      now,
+			// 	}
+			// 	db.Collection("notifications").InsertOne(sc, notification)
+			// }
 
 			return session.CommitTransaction(sc)
 		})

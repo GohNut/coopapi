@@ -74,6 +74,13 @@ func setupRoutes(e *echo.Echo) {
 
 	// Internal Payment / Transfer
 	v1.POST("/payment/internal", handlers.PerformInternalTransfer)
+
+	// Notification endpoints
+	v1.POST("/notification/get", handlers.GetNotifications)
+	v1.POST("/notification/add", handlers.AddNotification)
+	v1.POST("/notification/mark-read", handlers.MarkNotificationAsRead)
+	v1.POST("/notification/mark-all-read", handlers.MarkAllNotificationsAsRead)
+	v1.POST("/notification/delete", handlers.ClearNotifications)
 }
 
 func getAllowedOrigins() []string {
