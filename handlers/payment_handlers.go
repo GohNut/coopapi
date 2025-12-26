@@ -25,9 +25,26 @@ type StringOrMap interface{}
 
 // InternalTransferResponse represents the response for internal transfer
 type InternalTransferResponse struct {
-	Status        string `json:"status"`
-	TransactionID string `json:"transaction_id"`
-	Message       string `json:"message"`
+	Status        string    `json:"status"`
+	TransactionID string    `json:"transaction_id"`
+	Message       string    `json:"message"`
+	SlipInfo      *SlipInfo `json:"slip_info,omitempty"`
+}
+
+type SlipInfo struct {
+	TransactionRef  string       `json:"transaction_ref"`
+	TransactionDate time.Time    `json:"transaction_date"`
+	Sender          AccountInfo  `json:"sender"`
+	Receiver        AccountInfo  `json:"receiver"`
+	Amount          float64      `json:"amount"`
+	QRPayload       string       `json:"qr_payload"`
+}
+
+type AccountInfo struct {
+	Name            string `json:"name"`
+	AccountNoMasked string `json:"account_no_masked"`
+	BankName        string `json:"bank_name"`
+	BankCode        string `json:"bank_code,omitempty"`
 }
 
 // PerformInternalTransfer handles money transfer between two accounts
@@ -79,6 +96,11 @@ func PerformInternalTransfer(c echo.Context) error {
 	// Since we are not using full transactions to keep it simple and portable (Atlas free tier might not support or setup is complex), 
 	// we use individual updates. For production, please use mongo.Session if supported.
 	
+	// Generate transaction IDs and timestamp outside session for scoping
+	now := time.Now()
+	sourceTxID := fmt.Sprintf("TXN-OUT-%d", now.UnixNano())
+	destTxID := fmt.Sprintf("TXN-IN-%d", now.UnixNano())
+
 	session, err := db.Client().StartSession()
 	if err == nil {
 		defer session.EndSession(ctx)
@@ -106,9 +128,6 @@ func PerformInternalTransfer(c echo.Context) error {
 			}
 
 			// C. Create Transactions
-			now := time.Now()
-			sourceTxID := fmt.Sprintf("TXN-OUT-%d", now.UnixNano())
-			destTxID := fmt.Sprintf("TXN-IN-%d", now.UnixNano())
 
 			sourceTx := bson.M{
 				"transactionid": sourceTxID,
@@ -159,12 +178,37 @@ func PerformInternalTransfer(c echo.Context) error {
 		})
 	}
 
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Transfer failed", "details": err.Error()})
+	// Format masked account numbers for PDPA
+	maskAccount := func(accNo interface{}) string {
+		s, _ := accNo.(string)
+		if len(s) < 7 {
+			return s
+		}
+		return fmt.Sprintf("%s-xxx-%s", s[:3], s[len(s)-4:])
+	}
+
+	slipInfo := &SlipInfo{
+		TransactionRef:  sourceTxID,
+		TransactionDate: now,
+		Sender: AccountInfo{
+			Name:            fmt.Sprintf("%v", sourceAccount["accountname"]),
+			AccountNoMasked: maskAccount(sourceAccount["accountnumber"]),
+			BankName:        "Coop Saving",
+		},
+		Receiver: AccountInfo{
+			Name:            fmt.Sprintf("%v", destAccount["accountname"]),
+			AccountNoMasked: maskAccount(destAccount["accountnumber"]),
+			BankName:        "Coop Saving",
+			BankCode:        "COOP",
+		},
+		Amount:    amount,
+		QRPayload: fmt.Sprintf("https://coopapp.com/verify?ref=%s", sourceTxID),
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"status":  "success",
-		"message": "Transfer completed successfully",
+		"status":         "success",
+		"message":        "Transfer completed successfully",
+		"transaction_id": sourceTxID,
+		"slip_info":      slipInfo,
 	})
 }
