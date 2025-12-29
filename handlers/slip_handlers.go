@@ -141,15 +141,17 @@ func GenerateSlipHandler(c echo.Context) error {
 	// Create storage directory if not exists
 	storageDir := os.Getenv("STORAGE_DIR")
 	if storageDir == "" {
-		storageDir = "./storage/slips"
+		storageDir = "./storage"
 	}
+	// Append slips subfolder
+	slipsDir := fmt.Sprintf("%s/slips", storageDir)
 	
-	if err := os.MkdirAll(storageDir, 0755); err != nil {
+	if err := os.MkdirAll(slipsDir, 0755); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("Failed to create storage directory: %v", err)})
 	}
 
 	filename := fmt.Sprintf("%s_%d.png", slip.TransactionRef, time.Now().Unix())
-	filepath := fmt.Sprintf("%s/%s", storageDir, filename)
+	filepath := fmt.Sprintf("%s/%s", slipsDir, filename)
 	
 	if err := os.WriteFile(filepath, buf.Bytes(), 0644); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("Failed to save file: %v", err)})
