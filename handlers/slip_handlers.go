@@ -53,12 +53,17 @@ func GenerateSlipHandler(c echo.Context) error {
 	dc.SetRGB(1, 1, 1)
 	dc.Clear()
 
-	// 2. Load Fonts
+	// 2. Load Fonts (Sarabun.ttf)
 	fontPath := os.Getenv("FONT_PATH")
 	if fontPath == "" {
-		fontPath = "/app/assets/fonts/Sarabun-Regular.ttf"
+		fontPath = "./assets/fonts/Sarabun.ttf"
 	}
 	if _, err := os.Stat(fontPath); os.IsNotExist(err) {
+		// Docker path
+		fontPath = "/app/assets/fonts/Sarabun.ttf"
+	}
+	if _, err := os.Stat(fontPath); os.IsNotExist(err) {
+		// Fallback to system font
 		fontPath = "/System/Library/Fonts/Supplemental/Arial Unicode.ttf"
 	}
 
@@ -81,6 +86,14 @@ func GenerateSlipHandler(c echo.Context) error {
 		dc.DrawString(text, (width-tw)/2, y)
 	}
 
+	// Flutter Theme Colors (from app_colors.dart)
+	// primary = #1A90CE (RGB: 26, 144, 206)
+	// success = #4CAF50 (RGB: 76, 175, 80)
+	primaryColor := [3]float64{0.102, 0.565, 0.808}  // #1A90CE
+	successColor := [3]float64{0.298, 0.686, 0.314}  // #4CAF50
+	textPrimaryColor := [3]float64{0.129, 0.129, 0.129}  // #212121
+	textSecondaryColor := [3]float64{0.459, 0.459, 0.459}  // #757575
+
 	// Thai month names
 	thaiMonths := []string{"ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."}
 	
@@ -95,26 +108,25 @@ func GenerateSlipHandler(c echo.Context) error {
 		slip.TransactionDate.Minute())
 
 	// === HEADER SECTION ===
-	// Cyan top bar
-	dc.SetRGB255(0, 188, 212)
+	// Primary color top bar
+	dc.SetRGB(primaryColor[0], primaryColor[1], primaryColor[2])
 	dc.DrawRectangle(0, 0, width, 5)
 	dc.Fill()
 
-	// Logo placeholder (circle with text)
+	// Logo placeholder (circle with primary color)
 	dc.SetRGB255(220, 220, 220)
 	dc.DrawCircle(50, 50, 30)
 	dc.Fill()
-	dc.SetRGB255(0, 150, 136)
+	dc.SetRGB(primaryColor[0], primaryColor[1], primaryColor[2])
 	dc.DrawCircle(50, 50, 25)
 	dc.Fill()
-	drawText("สหกรณ์", 90, 45, 18, [3]float64{0, 0.59, 0.53}) // Teal color
-	drawText("สหกรณ์ รสพ.", 90, 65, 16, [3]float64{0.4, 0.4, 0.4})
+	drawText("สหกรณ์ รสพ.", 90, 55, 18, primaryColor)
 
-	// Green checkmark circle (top right)
+	// Green checkmark circle (top right) - using success color
 	dc.SetRGB255(200, 230, 201) // light green
 	dc.DrawCircle(width-50, 50, 28)
 	dc.Fill()
-	dc.SetRGB255(76, 175, 80) // green
+	dc.SetRGB(successColor[0], successColor[1], successColor[2])
 	dc.DrawCircle(width-50, 50, 22)
 	dc.Fill()
 	// Checkmark
@@ -125,31 +137,31 @@ func GenerateSlipHandler(c echo.Context) error {
 	dc.LineTo(width-35, 40)
 	dc.Stroke()
 
-	// === SUCCESS TEXT ===
-	drawTextCentered("โอนเงินสำเร็จ", 130, 32, [3]float64{0, 0.74, 0.83}) // Cyan color
+	// === SUCCESS TEXT === (Primary Blue)
+	drawTextCentered("โอนเงินสำเร็จ", 130, 32, primaryColor)
 
 	// === DATE ===
-	drawTextCentered(dateStr, 165, 16, [3]float64{0.5, 0.5, 0.5})
+	drawTextCentered(dateStr, 165, 16, textSecondaryColor)
 
 	// === AMOUNT ===
 	amountStr := fmt.Sprintf("%.2f บาท", slip.Amount)
-	drawTextCentered(amountStr, 230, 40, [3]float64{0.15, 0.15, 0.15})
+	drawTextCentered(amountStr, 230, 40, textPrimaryColor)
 
-	// === CYAN DIVIDER ===
-	dc.SetRGB255(0, 188, 212)
+	// === PRIMARY COLOR DIVIDER ===
+	dc.SetRGB(primaryColor[0], primaryColor[1], primaryColor[2])
 	dc.SetLineWidth(2)
 	dc.DrawLine(40, 260, width-40, 260)
 	dc.Stroke()
 
 	// === SENDER SECTION ===
-	drawText("จาก", 40, 310, 16, [3]float64{0.5, 0.5, 0.5})
-	drawText(slip.Sender.Name, 100, 310, 18, [3]float64{0.1, 0.1, 0.1})
-	drawText(slip.Sender.AccountNoMasked, 100, 335, 14, [3]float64{0.4, 0.4, 0.4})
+	drawText("จาก", 40, 310, 16, textSecondaryColor)
+	drawText(slip.Sender.Name, 100, 310, 18, textPrimaryColor)
+	drawText(slip.Sender.AccountNoMasked, 100, 335, 14, textSecondaryColor)
 
 	// === RECEIVER SECTION ===
-	drawText("ไปยัง", 40, 400, 16, [3]float64{0.5, 0.5, 0.5})
-	drawText(slip.Receiver.Name, 100, 400, 18, [3]float64{0.1, 0.1, 0.1})
-	drawText(slip.Receiver.AccountNoMasked, 100, 425, 14, [3]float64{0.4, 0.4, 0.4})
+	drawText("ไปยัง", 40, 400, 16, textSecondaryColor)
+	drawText(slip.Receiver.Name, 100, 400, 18, textPrimaryColor)
+	drawText(slip.Receiver.AccountNoMasked, 100, 425, 14, textSecondaryColor)
 
 	// === GRAY DIVIDER ===
 	dc.SetRGB(0.85, 0.85, 0.85)
@@ -158,8 +170,8 @@ func GenerateSlipHandler(c echo.Context) error {
 	dc.Stroke()
 
 	// === REFERENCE NUMBER ===
-	drawText("เลขที่อ้างอิง", 40, 510, 14, [3]float64{0.5, 0.5, 0.5})
-	drawText(slip.TransactionRef, 40, 535, 16, [3]float64{0.2, 0.2, 0.2})
+	drawText("เลขที่อ้างอิง", 40, 510, 14, textSecondaryColor)
+	drawText(slip.TransactionRef, 40, 535, 16, textPrimaryColor)
 
 	// === QR CODE (optional) ===
 	if slip.QRPayload != "" {
