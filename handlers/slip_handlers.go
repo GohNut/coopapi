@@ -130,8 +130,32 @@ func GenerateSlipHandler(c echo.Context) error {
 	if logoFile, err := os.Open(logoPath); err == nil {
 		defer logoFile.Close()
 		if logoImg, err := jpeg.Decode(logoFile); err == nil {
+			// Get original dimensions
+			bounds := logoImg.Bounds()
+			width := bounds.Dx()
+			height := bounds.Dy()
+			
+			// Crop to square (center crop)
+			var squareImg image.Image
+			if width > height {
+				// Landscape - crop width
+				offset := (width - height) / 2
+				squareImg = logoImg.(interface {
+					SubImage(r image.Rectangle) image.Image
+				}).SubImage(image.Rect(offset, 0, offset+height, height))
+			} else if height > width {
+				// Portrait - crop height
+				offset := (height - width) / 2
+				squareImg = logoImg.(interface {
+					SubImage(r image.Rectangle) image.Image
+				}).SubImage(image.Rect(0, offset, width, offset+width))
+			} else {
+				// Already square
+				squareImg = logoImg
+			}
+			
 			// Resize to exact square size
-			resizedLogo := resize.Resize(logoSize, logoSize, logoImg, resize.Lanczos3)
+			resizedLogo := resize.Resize(logoSize, logoSize, squareImg, resize.Lanczos3)
 			// Create circular mask
 			logoCtx := gg.NewContext(int(logoSize), int(logoSize))
 			logoCtx.DrawCircle(float64(logoSize)/2.0, float64(logoSize)/2.0, float64(logoSize)/2.0)
