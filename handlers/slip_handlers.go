@@ -45,9 +45,9 @@ func GenerateSlipHandler(c echo.Context) error {
 		QRPayload:       req.SlipInfo.QRPayload,
 	}
 
-	// === Image dimensions matching Flutter SlipWidget ===
+	// === Image dimensions - compact to fit content tightly ===
 	const width = 500
-	const height = 650
+	const height = 580
 	const paddingX = 30.0
 	dc := gg.NewContext(width, height)
 
