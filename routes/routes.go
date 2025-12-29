@@ -81,6 +81,16 @@ func setupRoutes(e *echo.Echo) {
 	v1.POST("/notification/mark-read", handlers.MarkNotificationAsRead)
 	v1.POST("/notification/mark-all-read", handlers.MarkAllNotificationsAsRead)
 	v1.POST("/notification/delete", handlers.ClearNotifications)
+
+	// Slip Generation
+	v1.POST("/slip/generate", handlers.GenerateSlipHandler)
+	
+	// Static file serving for storage
+	storageDir := os.Getenv("STORAGE_DIR")
+	if storageDir == "" {
+		storageDir = "./storage"
+	}
+	e.Static("/storage", storageDir)
 }
 
 func getAllowedOrigins() []string {

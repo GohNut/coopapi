@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -186,7 +187,12 @@ func PerformInternalTransfer(c echo.Context) error {
 		}
 		return fmt.Sprintf("%s-xxx-%s", s[:3], s[len(s)-4:])
 	}
-
+	
+	qrVerifyBase := os.Getenv("QR_VERIFY_BASE_URL")
+	if qrVerifyBase == "" {
+		qrVerifyBase = "https://coopapp.com"
+	}
+	
 	slipInfo := &SlipInfo{
 		TransactionRef:  sourceTxID,
 		TransactionDate: now,
@@ -202,7 +208,7 @@ func PerformInternalTransfer(c echo.Context) error {
 			BankCode:        "COOP",
 		},
 		Amount:    amount,
-		QRPayload: fmt.Sprintf("https://coopapp.com/verify?ref=%s", sourceTxID),
+		QRPayload: fmt.Sprintf("%s/verify?ref=%s", qrVerifyBase, sourceTxID),
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
