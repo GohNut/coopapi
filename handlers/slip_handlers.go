@@ -46,10 +46,14 @@ func GenerateSlipHandler(c echo.Context) error {
 	}
 
 	// === Image dimensions per slip_layout_spec.md ===
-	const width = 350
-	const height = 450  // Auto height ~420-450px
-	const paddingH = 20.0  // Horizontal padding
-	const paddingV = 24.0  // Vertical padding
+	// Using 3x scale for high-res devices (iPhone)
+	const scale = 3.0
+	const baseWidth = 350
+	const baseHeight = 450  // ~420-450px
+	const width = int(baseWidth * scale)   // 1050px
+	const height = int(baseHeight * scale) // 1350px
+	const paddingH = 20.0 * scale   // 60px
+	const paddingV = 24.0 * scale   // 72px
 	dc := gg.NewContext(width, height)
 
 	// Background - white
@@ -92,7 +96,7 @@ func GenerateSlipHandler(c echo.Context) error {
 		dc.LoadFontFace(usePath, size)
 		dc.SetRGB(colorRGB[0], colorRGB[1], colorRGB[2])
 		tw, _ := dc.MeasureString(text)
-		dc.DrawString(text, (width-tw)/2, y)
+		dc.DrawString(text, (float64(width)-tw)/2, y)
 	}
 
 	// === Colors per slip_layout_spec.md ===
@@ -115,13 +119,13 @@ func GenerateSlipHandler(c echo.Context) error {
 	// === HEADER ROW: Logo + Text + Checkmark ===
 	yPos := paddingV
 	
-	// Load and draw circular logo (45x45 per spec)
+	// Load and draw circular logo (45x45 per spec, scaled)
 	logoPath := "./assets/pic/logoCoop.jpg"
 	if _, err := os.Stat(logoPath); os.IsNotExist(err) {
 		logoPath = "/app/assets/pic/logoCoop.jpg"
 	}
 	
-	const logoSize = 45
+	logoSize := uint(45 * scale)  // 135px at 3x
 	logoLoaded := false
 	if logoFile, err := os.Open(logoPath); err == nil {
 		defer logoFile.Close()
@@ -129,7 +133,7 @@ func GenerateSlipHandler(c echo.Context) error {
 			// Resize to exact square size
 			resizedLogo := resize.Resize(logoSize, logoSize, logoImg, resize.Lanczos3)
 			// Create circular mask
-			logoCtx := gg.NewContext(logoSize, logoSize)
+			logoCtx := gg.NewContext(int(logoSize), int(logoSize))
 			logoCtx.DrawCircle(float64(logoSize)/2.0, float64(logoSize)/2.0, float64(logoSize)/2.0)
 			logoCtx.Clip()
 			logoCtx.DrawImage(resizedLogo, 0, 0)
@@ -143,77 +147,78 @@ func GenerateSlipHandler(c echo.Context) error {
 		dc.Fill()
 	}
 	
-	// "สหกรณ์ รสพ." text - 18pt Bold, primary color
-	drawText("สหกรณ์ รสพ.", paddingH+float64(logoSize)+12, yPos+28, 18, primaryGreen, true)
+	// "สหกรณ์ รสพ." text - 18pt Bold, primary color (scaled)
+	drawText("สหกรณ์ รสพ.", paddingH+float64(logoSize)+12*scale, yPos+28*scale, 18*scale, primaryGreen, true)
 	
-	// Success checkmark (32x32 per spec)
-	checkX := float64(width) - paddingH - 16
+	// Success checkmark (32x32 per spec, scaled)
+	checkSize := 16.0 * scale  // Radius
+	checkX := float64(width) - paddingH - checkSize
 	checkY := yPos + float64(logoSize)/2.0
 	// Green circle for success
 	dc.SetRGB(successGreen[0], successGreen[1], successGreen[2])
-	dc.DrawCircle(checkX, checkY, 16)
+	dc.DrawCircle(checkX, checkY, checkSize)
 	dc.Fill()
 	// White checkmark
 	dc.SetRGB(1, 1, 1)
-	dc.SetLineWidth(3)
-	dc.MoveTo(checkX-7, checkY)
-	dc.LineTo(checkX-2, checkY+5)
-	dc.LineTo(checkX+7, checkY-5)
+	dc.SetLineWidth(3 * scale)
+	dc.MoveTo(checkX-7*scale, checkY)
+	dc.LineTo(checkX-2*scale, checkY+5*scale)
+	dc.LineTo(checkX+7*scale, checkY-5*scale)
 	dc.Stroke()
 
 	// === "โอนเงินสำเร็จ" - 20pt Bold, success color ===
-	yPos += float64(logoSize) + 24
-	drawTextCentered("โอนเงินสำเร็จ", yPos, 20, successGreen, true)
+	yPos += float64(logoSize) + 24*scale
+	drawTextCentered("โอนเงินสำเร็จ", yPos, 20*scale, successGreen, true)
 	
 	// === DATE - 13pt Regular, textSecondary ===
-	yPos += 20
-	drawTextCentered(dateStr, yPos, 13, textSecondary, false)
+	yPos += 20 * scale
+	drawTextCentered(dateStr, yPos, 13*scale, textSecondary, false)
 
 	// === AMOUNT - 32pt Bold, textPrimary ===
-	yPos += 40
+	yPos += 40 * scale
 	amountStr := fmt.Sprintf("%.2f บาท", slip.Amount)
-	drawTextCentered(amountStr, yPos, 32, textPrimary, true)
+	drawTextCentered(amountStr, yPos, 32*scale, textPrimary, true)
 
 	// === DIVIDER - #E0E0E0 ===
-	yPos += 24
+	yPos += 24 * scale
 	dc.SetRGB(dividerColor[0], dividerColor[1], dividerColor[2])
-	dc.SetLineWidth(1)
+	dc.SetLineWidth(1 * scale)
 	dc.DrawLine(paddingH, yPos, float64(width)-paddingH, yPos)
 	dc.Stroke()
 
 	// === SENDER SECTION ===
-	yPos += 24
-	// "จาก" - 14pt Regular, textSecondary, fixed 40px width
-	drawText("จาก", paddingH, yPos, 14, textSecondary, false)
+	yPos += 24 * scale
+	// "จาก" - 14pt Regular, textSecondary
+	drawText("จาก", paddingH, yPos, 14*scale, textSecondary, false)
 	// Account name - 15pt Bold
-	drawText(slip.Sender.Name, paddingH+48, yPos, 15, textPrimary, true)
+	drawText(slip.Sender.Name, paddingH+48*scale, yPos, 15*scale, textPrimary, true)
 	// Account number - 13pt Regular, textSecondary
-	yPos += 18
-	drawText(slip.Sender.AccountNoMasked, paddingH+48, yPos, 13, textSecondary, false)
+	yPos += 18 * scale
+	drawText(slip.Sender.AccountNoMasked, paddingH+48*scale, yPos, 13*scale, textSecondary, false)
 
 	// === RECEIVER SECTION ===
-	yPos += 28
+	yPos += 28 * scale
 	// "ไปยัง" - 14pt Regular, textSecondary
-	drawText("ไปยัง", paddingH, yPos, 14, textSecondary, false)
+	drawText("ไปยัง", paddingH, yPos, 14*scale, textSecondary, false)
 	// Account name - 15pt Bold
-	drawText(slip.Receiver.Name, paddingH+48, yPos, 15, textPrimary, true)
+	drawText(slip.Receiver.Name, paddingH+48*scale, yPos, 15*scale, textPrimary, true)
 	// Account number - 13pt Regular, textSecondary
-	yPos += 18
-	drawText(slip.Receiver.AccountNoMasked, paddingH+48, yPos, 13, textSecondary, false)
+	yPos += 18 * scale
+	drawText(slip.Receiver.AccountNoMasked, paddingH+48*scale, yPos, 13*scale, textSecondary, false)
 
 	// === DIVIDER ===
-	yPos += 24
+	yPos += 24 * scale
 	dc.SetRGB(dividerColor[0], dividerColor[1], dividerColor[2])
 	dc.DrawLine(paddingH, yPos, float64(width)-paddingH, yPos)
 	dc.Stroke()
 
 	// === REFERENCE NUMBER ===
-	yPos += 20
+	yPos += 20 * scale
 	// "เลขที่อ้างอิง" - 12pt Regular, textSecondary
-	drawText("เลขที่อ้างอิง", paddingH, yPos, 12, textSecondary, false)
+	drawText("เลขที่อ้างอิง", paddingH, yPos, 12*scale, textSecondary, false)
 	// Ref value - 13pt Medium
-	yPos += 16
-	drawText(slip.TransactionRef, paddingH, yPos, 13, textPrimary, true)
+	yPos += 16 * scale
+	drawText(slip.TransactionRef, paddingH, yPos, 13*scale, textPrimary, true)
 
 	// 4. Encode to PNG
 	var buf bytes.Buffer
