@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"fmt"
+	"image/jpeg"
 	"image/png"
 	"net/http"
 	"os"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/fogleman/gg"
 	"github.com/labstack/echo/v4"
+	"github.com/nfnt/resize"
 	"github.com/skip2/go-qrcode"
 )
 
@@ -113,14 +115,31 @@ func GenerateSlipHandler(c echo.Context) error {
 	dc.DrawRectangle(0, 0, width, 5)
 	dc.Fill()
 
-	// Logo placeholder (circle with primary color)
-	dc.SetRGB255(220, 220, 220)
-	dc.DrawCircle(50, 50, 30)
-	dc.Fill()
-	dc.SetRGB(primaryColor[0], primaryColor[1], primaryColor[2])
-	dc.DrawCircle(50, 50, 25)
-	dc.Fill()
-	drawText("สหกรณ์ รสพ.", 90, 55, 18, primaryColor)
+	// Load and draw logo
+	logoPath := "./assets/pic/logoCoop.jpg"
+	if _, err := os.Stat(logoPath); os.IsNotExist(err) {
+		logoPath = "/app/assets/pic/logoCoop.jpg"
+	}
+	
+	logoLoaded := false
+	if logoFile, err := os.Open(logoPath); err == nil {
+		defer logoFile.Close()
+		if logoImg, err := jpeg.Decode(logoFile); err == nil {
+			// Resize logo to 50x50
+			resizedLogo := resize.Resize(50, 50, logoImg, resize.Lanczos3)
+			dc.DrawImage(resizedLogo, 20, 25)
+			logoLoaded = true
+		}
+	}
+	
+	// Fallback: draw circle if logo not loaded
+	if !logoLoaded {
+		dc.SetRGB(primaryColor[0], primaryColor[1], primaryColor[2])
+		dc.DrawCircle(45, 50, 25)
+		dc.Fill()
+	}
+	
+	drawText("สหกรณ์ รสพ.", 80, 55, 18, primaryColor)
 
 	// Green checkmark circle (top right) - using success color
 	dc.SetRGB255(200, 230, 201) // light green

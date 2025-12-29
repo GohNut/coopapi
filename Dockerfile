@@ -24,6 +24,9 @@ RUN apk --no-cache add ca-certificates
 # Copy binary from builder
 COPY --from=builder /app/loan-dynamic-api .
 
+# Copy assets (fonts for slip generation)
+COPY --from=builder /app/assets ./assets
+
 # Expose port (default 8080 as per main.go)
 EXPOSE 8080
 
