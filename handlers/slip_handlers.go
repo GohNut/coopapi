@@ -45,10 +45,11 @@ func GenerateSlipHandler(c echo.Context) error {
 		QRPayload:       req.SlipInfo.QRPayload,
 	}
 
-	// === Image dimensions - compact to fit content tightly ===
-	const width = 500
-	const height = 580
-	const paddingX = 30.0
+	// === Image dimensions per slip_layout_spec.md ===
+	const width = 350
+	const height = 450  // Auto height ~420-450px
+	const paddingH = 20.0  // Horizontal padding
+	const paddingV = 24.0  // Vertical padding
 	dc := gg.NewContext(width, height)
 
 	// Background - white
@@ -94,13 +95,12 @@ func GenerateSlipHandler(c echo.Context) error {
 		dc.DrawString(text, (width-tw)/2, y)
 	}
 
-	// === Colors (matching Flutter app_colors.dart) ===
-	cyanColor := [3]float64{0.0, 0.737, 0.831}       // #00BCD4 - cyan for "โอนเงินสำเร็จ"
-	primaryColor := [3]float64{0.102, 0.565, 0.808} // #1A90CE
-	successColor := [3]float64{0.298, 0.686, 0.314} // #4CAF50 - green checkmark
-	textBlack := [3]float64{0.13, 0.13, 0.13}       // #212121
-	textGray := [3]float64{0.5, 0.5, 0.5}           // #808080
-	dividerGray := [3]float64{0.85, 0.85, 0.85}     // #D9D9D9
+	// === Colors per slip_layout_spec.md ===
+	primaryGreen := [3]float64{0.0, 0.424, 0.278}   // #006C47 - สีเขียวสหกรณ์
+	successGreen := [3]float64{0.0, 0.784, 0.325}   // #00C853 - สีเขียวสำเร็จ
+	textPrimary := [3]float64{0.129, 0.129, 0.129}  // #212121 - ดำ
+	textSecondary := [3]float64{0.459, 0.459, 0.459} // #757575 - เทา
+	dividerColor := [3]float64{0.878, 0.878, 0.878}  // #E0E0E0 - เทาอ่อน
 
 	// === Thai date format ===
 	thaiMonths := []string{"ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."}
@@ -112,109 +112,108 @@ func GenerateSlipHandler(c echo.Context) error {
 		slip.TransactionDate.Hour(),
 		slip.TransactionDate.Minute())
 
-	// ========== CYAN TOP BAR ==========
-	dc.SetRGB(cyanColor[0], cyanColor[1], cyanColor[2])
-	dc.DrawRectangle(0, 0, width, 6)
-	dc.Fill()
-
-	// ========== HEADER ROW: Logo + Text + Checkmark ==========
-	yPos := 35.0
+	// === HEADER ROW: Logo + Text + Checkmark ===
+	yPos := paddingV
 	
-	// Load and draw circular logo
+	// Load and draw circular logo (45x45 per spec)
 	logoPath := "./assets/pic/logoCoop.jpg"
 	if _, err := os.Stat(logoPath); os.IsNotExist(err) {
 		logoPath = "/app/assets/pic/logoCoop.jpg"
 	}
 	
-	const logoSize = 55
+	const logoSize = 45
 	logoLoaded := false
 	if logoFile, err := os.Open(logoPath); err == nil {
 		defer logoFile.Close()
 		if logoImg, err := jpeg.Decode(logoFile); err == nil {
+			// Resize to exact square size
 			resizedLogo := resize.Resize(logoSize, logoSize, logoImg, resize.Lanczos3)
-			// Circular mask
+			// Create circular mask
 			logoCtx := gg.NewContext(logoSize, logoSize)
-			logoCtx.DrawCircle(logoSize/2, logoSize/2, logoSize/2)
+			logoCtx.DrawCircle(float64(logoSize)/2.0, float64(logoSize)/2.0, float64(logoSize)/2.0)
 			logoCtx.Clip()
 			logoCtx.DrawImage(resizedLogo, 0, 0)
-			dc.DrawImage(logoCtx.Image(), int(paddingX), int(yPos))
+			dc.DrawImage(logoCtx.Image(), int(paddingH), int(yPos))
 			logoLoaded = true
 		}
 	}
 	if !logoLoaded {
-		dc.SetRGB(primaryColor[0], primaryColor[1], primaryColor[2])
-		dc.DrawCircle(paddingX+logoSize/2, yPos+logoSize/2, logoSize/2)
+		dc.SetRGB(primaryGreen[0], primaryGreen[1], primaryGreen[2])
+		dc.DrawCircle(paddingH+float64(logoSize)/2.0, yPos+float64(logoSize)/2.0, float64(logoSize)/2.0)
 		dc.Fill()
 	}
 	
-	// "สหกรณ์ รสพ." text next to logo
-	drawText("สหกรณ์ รสพ.", paddingX+logoSize+15, yPos+35, 22, cyanColor, true)
+	// "สหกรณ์ รสพ." text - 18pt Bold, primary color
+	drawText("สหกรณ์ รสพ.", paddingH+float64(logoSize)+12, yPos+28, 18, primaryGreen, true)
 	
-	// Green checkmark circle on right
-	checkX := float64(width) - paddingX - 22
-	checkY := yPos + logoSize/2
-	// Light green background
-	dc.SetRGB255(200, 230, 201)
-	dc.DrawCircle(checkX, checkY, 22)
-	dc.Fill()
-	// Green circle
-	dc.SetRGB(successColor[0], successColor[1], successColor[2])
-	dc.DrawCircle(checkX, checkY, 18)
+	// Success checkmark (32x32 per spec)
+	checkX := float64(width) - paddingH - 16
+	checkY := yPos + float64(logoSize)/2.0
+	// Green circle for success
+	dc.SetRGB(successGreen[0], successGreen[1], successGreen[2])
+	dc.DrawCircle(checkX, checkY, 16)
 	dc.Fill()
 	// White checkmark
 	dc.SetRGB(1, 1, 1)
-	dc.SetLineWidth(4)
-	dc.MoveTo(checkX-9, checkY+1)
-	dc.LineTo(checkX-2, checkY+8)
-	dc.LineTo(checkX+10, checkY-6)
+	dc.SetLineWidth(3)
+	dc.MoveTo(checkX-7, checkY)
+	dc.LineTo(checkX-2, checkY+5)
+	dc.LineTo(checkX+7, checkY-5)
 	dc.Stroke()
 
-	// ========== "โอนเงินสำเร็จ" ==========
-	yPos += logoSize + 50
-	drawTextCentered("โอนเงินสำเร็จ", yPos, 28, cyanColor, true)
+	// === "โอนเงินสำเร็จ" - 20pt Bold, success color ===
+	yPos += float64(logoSize) + 24
+	drawTextCentered("โอนเงินสำเร็จ", yPos, 20, successGreen, true)
 	
-	// ========== DATE ==========
-	yPos += 30
-	drawTextCentered(dateStr, yPos, 16, textGray, false)
+	// === DATE - 13pt Regular, textSecondary ===
+	yPos += 20
+	drawTextCentered(dateStr, yPos, 13, textSecondary, false)
 
-	// ========== AMOUNT ==========
-	yPos += 60
+	// === AMOUNT - 32pt Bold, textPrimary ===
+	yPos += 40
 	amountStr := fmt.Sprintf("%.2f บาท", slip.Amount)
-	drawTextCentered(amountStr, yPos, 42, textBlack, true)
+	drawTextCentered(amountStr, yPos, 32, textPrimary, true)
 
-	// ========== CYAN DIVIDER ==========
-	yPos += 40
-	dc.SetRGB(cyanColor[0], cyanColor[1], cyanColor[2])
-	dc.SetLineWidth(2)
-	dc.DrawLine(paddingX, yPos, float64(width)-paddingX, yPos)
-	dc.Stroke()
-
-	// ========== SENDER SECTION ==========
-	yPos += 45
-	drawText("จาก", paddingX, yPos, 18, textGray, false)
-	drawText(slip.Sender.Name, paddingX+60, yPos, 20, textBlack, true)
-	yPos += 28
-	drawText(slip.Sender.AccountNoMasked, paddingX+60, yPos, 16, textGray, false)
-
-	// ========== RECEIVER SECTION ==========
-	yPos += 50
-	drawText("ไปยัง", paddingX, yPos, 18, textGray, false)
-	drawText(slip.Receiver.Name, paddingX+60, yPos, 20, textBlack, true)
-	yPos += 28
-	drawText(slip.Receiver.AccountNoMasked, paddingX+60, yPos, 16, textGray, false)
-
-	// ========== GRAY DIVIDER ==========
-	yPos += 40
-	dc.SetRGB(dividerGray[0], dividerGray[1], dividerGray[2])
+	// === DIVIDER - #E0E0E0 ===
+	yPos += 24
+	dc.SetRGB(dividerColor[0], dividerColor[1], dividerColor[2])
 	dc.SetLineWidth(1)
-	dc.DrawLine(paddingX, yPos, float64(width)-paddingX, yPos)
+	dc.DrawLine(paddingH, yPos, float64(width)-paddingH, yPos)
 	dc.Stroke()
 
-	// ========== REFERENCE NUMBER ==========
-	yPos += 35
-	drawText("เลขที่อ้างอิง", paddingX, yPos, 16, textGray, false)
+	// === SENDER SECTION ===
+	yPos += 24
+	// "จาก" - 14pt Regular, textSecondary, fixed 40px width
+	drawText("จาก", paddingH, yPos, 14, textSecondary, false)
+	// Account name - 15pt Bold
+	drawText(slip.Sender.Name, paddingH+48, yPos, 15, textPrimary, true)
+	// Account number - 13pt Regular, textSecondary
+	yPos += 18
+	drawText(slip.Sender.AccountNoMasked, paddingH+48, yPos, 13, textSecondary, false)
+
+	// === RECEIVER SECTION ===
 	yPos += 28
-	drawText(slip.TransactionRef, paddingX, yPos, 18, textBlack, true)
+	// "ไปยัง" - 14pt Regular, textSecondary
+	drawText("ไปยัง", paddingH, yPos, 14, textSecondary, false)
+	// Account name - 15pt Bold
+	drawText(slip.Receiver.Name, paddingH+48, yPos, 15, textPrimary, true)
+	// Account number - 13pt Regular, textSecondary
+	yPos += 18
+	drawText(slip.Receiver.AccountNoMasked, paddingH+48, yPos, 13, textSecondary, false)
+
+	// === DIVIDER ===
+	yPos += 24
+	dc.SetRGB(dividerColor[0], dividerColor[1], dividerColor[2])
+	dc.DrawLine(paddingH, yPos, float64(width)-paddingH, yPos)
+	dc.Stroke()
+
+	// === REFERENCE NUMBER ===
+	yPos += 20
+	// "เลขที่อ้างอิง" - 12pt Regular, textSecondary
+	drawText("เลขที่อ้างอิง", paddingH, yPos, 12, textSecondary, false)
+	// Ref value - 13pt Medium
+	yPos += 16
+	drawText(slip.TransactionRef, paddingH, yPos, 13, textPrimary, true)
 
 	// 4. Encode to PNG
 	var buf bytes.Buffer
