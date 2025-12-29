@@ -44,24 +44,26 @@ func GenerateSlipHandler(c echo.Context) error {
 		QRPayload:       req.SlipInfo.QRPayload,
 	}
 
-	// 1. Create Image Context (350x600 is a good size for slip)
-	const width = 450
-	const height = 750
+	// 1. Create Image Context
+	const width = 500
+	const height = 700
 	dc := gg.NewContext(width, height)
 
-	// Background
+	// Background - white
 	dc.SetRGB(1, 1, 1)
 	dc.Clear()
 
 	// 2. Load Fonts
-	// Fallback to Arial Unicode if Sarabun not found
-	fontPath := "/Users/nutthep/Goh/สหกรณ์/CoopDigital/coopapi/assets/fonts/Sarabun.ttf"
+	fontPath := os.Getenv("FONT_PATH")
+	if fontPath == "" {
+		fontPath = "/app/assets/fonts/Sarabun-Regular.ttf"
+	}
 	if _, err := os.Stat(fontPath); os.IsNotExist(err) {
 		fontPath = "/System/Library/Fonts/Supplemental/Arial Unicode.ttf"
 	}
 
 	// Helper for text rendering
-	drawText := func(text string, x, y float64, size float64, colorRGB [3]float64, bold bool) {
+	drawText := func(text string, x, y float64, size float64, colorRGB [3]float64) {
 		if err := dc.LoadFontFace(fontPath, size); err != nil {
 			fmt.Printf("Error loading font: %v\n", err)
 		}
@@ -69,65 +71,102 @@ func GenerateSlipHandler(c echo.Context) error {
 		dc.DrawString(text, x, y)
 	}
 
-	// 3. Draw Slip Content (Simplified version of SlipWidget)
+	// Helper for centered text
+	drawTextCentered := func(text string, y float64, size float64, colorRGB [3]float64) {
+		if err := dc.LoadFontFace(fontPath, size); err != nil {
+			fmt.Printf("Error loading font: %v\n", err)
+		}
+		dc.SetRGB(colorRGB[0], colorRGB[1], colorRGB[2])
+		tw, _ := dc.MeasureString(text)
+		dc.DrawString(text, (width-tw)/2, y)
+	}
+
+	// Thai month names
+	thaiMonths := []string{"ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."}
 	
-	// Circle Icon Placeholder (Green)
+	// Convert to Thai Buddhist Era (BE = CE + 543)
+	thaiYear := slip.TransactionDate.Year() + 543
+	thaiMonth := thaiMonths[slip.TransactionDate.Month()-1]
+	dateStr := fmt.Sprintf("%d %s %d, %02d:%02d", 
+		slip.TransactionDate.Day(), 
+		thaiMonth, 
+		thaiYear,
+		slip.TransactionDate.Hour(),
+		slip.TransactionDate.Minute())
+
+	// === HEADER SECTION ===
+	// Cyan top bar
+	dc.SetRGB255(0, 188, 212)
+	dc.DrawRectangle(0, 0, width, 5)
+	dc.Fill()
+
+	// Logo placeholder (circle with text)
+	dc.SetRGB255(220, 220, 220)
+	dc.DrawCircle(50, 50, 30)
+	dc.Fill()
+	dc.SetRGB255(0, 150, 136)
+	dc.DrawCircle(50, 50, 25)
+	dc.Fill()
+	drawText("สหกรณ์", 90, 45, 18, [3]float64{0, 0.59, 0.53}) // Teal color
+	drawText("สหกรณ์ รสพ.", 90, 65, 16, [3]float64{0.4, 0.4, 0.4})
+
+	// Green checkmark circle (top right)
 	dc.SetRGB255(200, 230, 201) // light green
-	dc.DrawCircle(width/2, 80, 40)
+	dc.DrawCircle(width-50, 50, 28)
 	dc.Fill()
-	dc.SetRGB255(76, 175, 80) // dark green
-	dc.DrawCircle(width/2, 80, 30)
+	dc.SetRGB255(76, 175, 80) // green
+	dc.DrawCircle(width-50, 50, 22)
 	dc.Fill()
-	// Checkmark (simple)
+	// Checkmark
 	dc.SetRGB(1, 1, 1)
-	dc.SetLineWidth(5)
-	dc.DrawLine(width/2-15, 80, width/2, 95)
-	dc.DrawLine(width/2, 95, width/2+20, 65)
+	dc.SetLineWidth(4)
+	dc.MoveTo(width-60, 50)
+	dc.LineTo(width-50, 60)
+	dc.LineTo(width-35, 40)
 	dc.Stroke()
 
-	// Success Text
-	drawText("โอนเงินสำเร็จ", width/2-60, 160, 28, [3]float64{0.2, 0.6, 0.2}, true)
+	// === SUCCESS TEXT ===
+	drawTextCentered("โอนเงินสำเร็จ", 130, 32, [3]float64{0, 0.74, 0.83}) // Cyan color
 
-	// Date
-	dateStr := slip.TransactionDate.Format("02 Jan 2006, 15:04")
-	drawText(dateStr, width/2-80, 200, 16, [3]float64{0.5, 0.5, 0.5}, false)
+	// === DATE ===
+	drawTextCentered(dateStr, 165, 16, [3]float64{0.5, 0.5, 0.5})
 
-	// Amount
+	// === AMOUNT ===
 	amountStr := fmt.Sprintf("%.2f บาท", slip.Amount)
-	drawText(amountStr, width/2-100, 280, 36, [3]float64{0.1, 0.1, 0.1}, true)
+	drawTextCentered(amountStr, 230, 40, [3]float64{0.15, 0.15, 0.15})
 
-	// Divider
-	dc.SetRGB(0.9, 0.9, 0.9)
-	dc.DrawLine(40, 320, width-40, 320)
+	// === CYAN DIVIDER ===
+	dc.SetRGB255(0, 188, 212)
+	dc.SetLineWidth(2)
+	dc.DrawLine(40, 260, width-40, 260)
 	dc.Stroke()
 
-	// Sender Section
-	drawText("จาก", 40, 360, 14, [3]float64{0.5, 0.5, 0.5}, false)
-	drawText(slip.Sender.Name, 100, 360, 18, [3]float64{0, 0, 0}, true)
-	drawText(slip.Sender.AccountNoMasked, 100, 385, 14, [3]float64{0.4, 0.4, 0.4}, false)
-	drawText(slip.Sender.BankName, 100, 405, 12, [3]float64{0.6, 0.6, 0.6}, false)
+	// === SENDER SECTION ===
+	drawText("จาก", 40, 310, 16, [3]float64{0.5, 0.5, 0.5})
+	drawText(slip.Sender.Name, 100, 310, 18, [3]float64{0.1, 0.1, 0.1})
+	drawText(slip.Sender.AccountNoMasked, 100, 335, 14, [3]float64{0.4, 0.4, 0.4})
 
-	// Receiver Section
-	drawText("ไปยัง", 40, 460, 14, [3]float64{0.5, 0.5, 0.5}, false)
-	drawText(slip.Receiver.Name, 100, 460, 18, [3]float64{0, 0, 0}, true)
-	drawText(slip.Receiver.AccountNoMasked, 100, 485, 14, [3]float64{0.4, 0.4, 0.4}, false)
-	drawText(slip.Receiver.BankName, 100, 505, 12, [3]float64{0.6, 0.6, 0.6}, false)
+	// === RECEIVER SECTION ===
+	drawText("ไปยัง", 40, 400, 16, [3]float64{0.5, 0.5, 0.5})
+	drawText(slip.Receiver.Name, 100, 400, 18, [3]float64{0.1, 0.1, 0.1})
+	drawText(slip.Receiver.AccountNoMasked, 100, 425, 14, [3]float64{0.4, 0.4, 0.4})
 
-	// Divider
-	dc.SetRGB(0.9, 0.9, 0.9)
-	dc.DrawLine(40, 540, width-40, 540)
+	// === GRAY DIVIDER ===
+	dc.SetRGB(0.85, 0.85, 0.85)
+	dc.SetLineWidth(1)
+	dc.DrawLine(40, 470, width-40, 470)
 	dc.Stroke()
 
-	// Ref No
-	drawText("เลขที่อ้างอิง", 40, 570, 12, [3]float64{0.5, 0.5, 0.5}, false)
-	drawText(slip.TransactionRef, 40, 595, 14, [3]float64{0.2, 0.2, 0.2}, false)
+	// === REFERENCE NUMBER ===
+	drawText("เลขที่อ้างอิง", 40, 510, 14, [3]float64{0.5, 0.5, 0.5})
+	drawText(slip.TransactionRef, 40, 535, 16, [3]float64{0.2, 0.2, 0.2})
 
-	// QR Code
+	// === QR CODE (optional) ===
 	if slip.QRPayload != "" {
 		qr, err := qrcode.New(slip.QRPayload, qrcode.Medium)
 		if err == nil {
-			qrImg := qr.Image(120)
-			dc.DrawImage(qrImg, width-160, 560)
+			qrImg := qr.Image(100)
+			dc.DrawImage(qrImg, width-130, 580)
 		}
 	}
 
