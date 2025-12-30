@@ -85,6 +85,10 @@ func setupRoutes(e *echo.Echo) {
 	// Slip Generation
 	v1.POST("/slip/generate", handlers.GenerateSlipHandler)
 	
+	// QR Generation
+	v1.POST("/qr/generate", handlers.GenerateQRHandler)
+	v1.POST("/qr/delete", handlers.DeleteQRHandler)
+	
 	// Static file serving for storage
 	storageDir := os.Getenv("STORAGE_DIR")
 	if storageDir == "" {
