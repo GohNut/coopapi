@@ -3,7 +3,6 @@ package handlers
 import (
 	"bytes"
 	"fmt"
-	"image"
 	"image/jpeg"
 	"image/png"
 	"net/http"
