@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"fmt"
+	"image"
 	"image/jpeg"
 	"image/png"
 	"net/http"
@@ -89,8 +90,40 @@ func GenerateQRHandler(c echo.Context) error {
 	if logoFile, err := os.Open(logoPath); err == nil {
 		defer logoFile.Close()
 		if logoImg, err := jpeg.Decode(logoFile); err == nil {
-			resizedLogo := resize.Resize(logoSize, logoSize, logoImg, resize.Lanczos3)
-			dc.DrawImage(resizedLogo, (width-int(logoSize))/2, int(yPos))
+			// Get original dimensions
+			bounds := logoImg.Bounds()
+			imgW := bounds.Dx()
+			imgH := bounds.Dy()
+			
+			// Crop to square (center crop)
+			var squareImg image.Image
+			if imgW > imgH {
+				// Landscape - crop width
+				offset := (imgW - imgH) / 2
+				squareImg = logoImg.(interface {
+					SubImage(r image.Rectangle) image.Image
+				}).SubImage(image.Rect(offset, 0, offset+imgH, imgH))
+			} else if imgH > imgW {
+				// Portrait - crop height
+				offset := (imgH - imgW) / 2
+				squareImg = logoImg.(interface {
+					SubImage(r image.Rectangle) image.Image
+				}).SubImage(image.Rect(0, offset, imgW, offset+imgW))
+			} else {
+				// Already square
+				squareImg = logoImg
+			}
+
+			// Resize to exact square size
+			resizedLogo := resize.Resize(logoSize, logoSize, squareImg, resize.Lanczos3)
+			
+			// Create circular mask
+			logoCtx := gg.NewContext(int(logoSize), int(logoSize))
+			logoCtx.DrawCircle(float64(logoSize)/2.0, float64(logoSize)/2.0, float64(logoSize)/2.0)
+			logoCtx.Clip()
+			logoCtx.DrawImage(resizedLogo, 0, 0)
+			
+			dc.DrawImage(logoCtx.Image(), (width-int(logoSize))/2, int(yPos))
 			logoLoaded = true
 		}
 	}
