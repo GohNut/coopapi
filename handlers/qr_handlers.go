@@ -24,6 +24,7 @@ func GenerateQRHandler(c echo.Context) error {
 		AccountNoMasked string  `json:"account_no_masked"`
 		QRPayload       string  `json:"qr_payload"`
 		Amount          float64 `json:"amount,omitempty"`
+		Title           string  `json:"title,omitempty"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
@@ -134,7 +135,11 @@ func GenerateQRHandler(c echo.Context) error {
 	}
 
 	yPos += float64(logoSize) + 40
-	drawTextCentered("QR รับเงิน", yPos, 38, primaryGreen, true)
+	title := req.Title
+	if title == "" {
+		title = "QR รับเงิน"
+	}
+	drawTextCentered(title, yPos, 38, primaryGreen, true)
 
 	// 4. Draw QR Code
 	yPos += 40
